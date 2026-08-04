@@ -172,6 +172,15 @@ func TestValidatePayloadBounds(t *testing.T) {
 		require.ErrorIs(t, ValidateTags(map[string]TagValue{"double": NewDoubleTagValue(math.Inf(1))}), merr.ErrParameterInvalid)
 	})
 
+	t.Run("principal tag logical size", func(t *testing.T) {
+		tags := map[string]TagValue{
+			"s": NewStringTagValue("abc"),
+			"i": NewInt64TagValue(1),
+			"d": NewDoubleTagValue(1.5),
+		}
+		require.Equal(t, int64(len("alice")+len("s")+len("abc")+len("i")+8+len("d")+8), PrincipalTagsSize("alice", tags))
+	})
+
 	t.Run("JSON tag payload", func(t *testing.T) {
 		tags, err := TagsFromJSON(`{"tenant":"acme","level":3,"score":0.75}`)
 		require.NoError(t, err)

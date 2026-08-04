@@ -54,6 +54,22 @@ func NewDoubleTagValue(value float64) TagValue {
 	return TagValue{Kind: TagValueKindDouble, DoubleValue: value}
 }
 
+// PrincipalTagsSize returns the logical bytes occupied by one principal and
+// its tags. Numeric values use their fixed-width in-memory representation.
+func PrincipalTagsSize(principalName string, tags map[string]TagValue) int64 {
+	size := int64(len(principalName))
+	for key, value := range tags {
+		size += int64(len(key))
+		switch value.Kind {
+		case TagValueKindString:
+			size += int64(len(value.StringValue))
+		case TagValueKindInt64, TagValueKindDouble:
+			size += 8
+		}
+	}
+	return size
+}
+
 func TagsFromJSON(payload string) (map[string]TagValue, error) {
 	decoder := json.NewDecoder(strings.NewReader(payload))
 	decoder.UseNumber()
