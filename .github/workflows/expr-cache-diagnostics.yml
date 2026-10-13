@@ -19,8 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         revision:
-          - c64d0fb58132482c74ce9bd5f1682b9aed7acf12
-          - 55b4415230cb92d15089ddc5c1b97bae2962e087
+          - 6b82ebf1582a1362d2934e6b7854de5d991181c9
     env:
       GOTOOLCHAIN: local
     steps:
@@ -48,9 +47,15 @@ jobs:
         continue-on-error: true
         working-directory: pkg
         run: go test -tags dynamic,test -gcflags='all=-N -l' -race -cover -failfast -count=1 -timeout=10m ./util/paramtable
+      - name: Lower configured startup budget
+        id: startup
+        continue-on-error: true
+        env:
+          MILVUS_CONF_PROXY_EXPRCACHE_MAXBYTES: '4096'
+        run: go test -tags dynamic,test -gcflags='all=-N -l' -race -cover -failfast -count=1 -timeout=10m ./internal/parser/planparserv2/...
       - name: Cache order and CPU stress
         id: stress
-        if: matrix.revision == 'c64d0fb58132482c74ce9bd5f1682b9aed7acf12'
+        if: matrix.revision == '6b82ebf1582a1362d2934e6b7854de5d991181c9'
         continue-on-error: true
         run: go test -tags dynamic,test -gcflags='all=-N -l' -race -cover -count=3 -cpu=1,4 -shuffle=73013 -timeout=10m -run 'Test.*(ExprCache|CachedTrees|HandleInternalCaches|HandleInternalAccounts|HandleInternalReturns)' ./internal/parser/planparserv2
       - name: Check test outcomes
@@ -58,12 +63,14 @@ jobs:
         env:
           PARSER_OUTCOME: ${{ steps.parser.outcome }}
           CONFIG_OUTCOME: ${{ steps.config.outcome }}
+          STARTUP_OUTCOME: ${{ steps.startup.outcome }}
           STRESS_OUTCOME: ${{ steps.stress.outcome }}
           REVISION: ${{ matrix.revision }}
         run: |
           printf 'revision=%s parser=%s config=%s stress=%s\n' "$REVISION" "$PARSER_OUTCOME" "$CONFIG_OUTCOME" "$STRESS_OUTCOME"
           test "$PARSER_OUTCOME" = success
           test "$CONFIG_OUTCOME" = success
-          if [ "$REVISION" = c64d0fb58132482c74ce9bd5f1682b9aed7acf12 ]; then
+          test "$STARTUP_OUTCOME" = success
+          if [ "$REVISION" = 6b82ebf1582a1362d2934e6b7854de5d991181c9 ]; then
             test "$STRESS_OUTCOME" = success
           fi
