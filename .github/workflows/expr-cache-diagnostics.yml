@@ -1,0 +1,71 @@
+name: Expression cache Linux diagnostics
+
+on:
+  push:
+    branches:
+      - verify/milvus-53776-linux-20261013
+    paths:
+      - .github/workflows/expr-cache-diagnostics.yml
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    if: github.repository == 'po-et/milvus'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        revision:
+          - c64d0fb58132482c74ce9bd5f1682b9aed7acf12
+          - 55b4415230cb92d15089ddc5c1b97bae2962e087
+    env:
+      GOTOOLCHAIN: local
+      MILVUS_CONF_LOCALSTORAGE_PATH: /tmp/milvus-expr-cache-diagnostics
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ matrix.revision }}
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version: '1.26.6'
+          cache: false
+      - name: Record revision and prepare test storage
+        run: |
+          test "$(git rev-parse HEAD)" = '${{ matrix.revision }}'
+          go version
+          uname -a
+          # Tests with SkipEnv(true) intentionally use this default Linux path.
+          sudo install -d -m 0777 /var/lib/milvus/data
+          mkdir -p "$MILVUS_CONF_LOCALSTORAGE_PATH"
+      - name: Parser and rewriter suite
+        id: parser
+        continue-on-error: true
+        run: go test -tags dynamic,test -gcflags='all=-N -l' -race -cover -failfast -count=1 -timeout=10m ./internal/parser/planparserv2/...
+      - name: Configuration suite
+        id: config
+        continue-on-error: true
+        working-directory: pkg
+        run: go test -tags dynamic,test -gcflags='all=-N -l' -race -cover -failfast -count=1 -timeout=10m ./util/paramtable
+      - name: Cache order and CPU stress
+        id: stress
+        if: matrix.revision == 'c64d0fb58132482c74ce9bd5f1682b9aed7acf12'
+        continue-on-error: true
+        run: go test -tags dynamic,test -gcflags='all=-N -l' -race -cover -count=3 -cpu=1,4 -shuffle=73013 -timeout=10m -run 'Test.*(ExprCache|CachedTrees|HandleInternalCaches|HandleInternalAccounts|HandleInternalReturns)' ./internal/parser/planparserv2
+      - name: Check test outcomes
+        if: always()
+        env:
+          PARSER_OUTCOME: ${{ steps.parser.outcome }}
+          CONFIG_OUTCOME: ${{ steps.config.outcome }}
+          STRESS_OUTCOME: ${{ steps.stress.outcome }}
+          REVISION: ${{ matrix.revision }}
+        run: |
+          printf 'revision=%s parser=%s config=%s stress=%s\n' "$REVISION" "$PARSER_OUTCOME" "$CONFIG_OUTCOME" "$STRESS_OUTCOME"
+          test "$PARSER_OUTCOME" = success
+          test "$CONFIG_OUTCOME" = success
+          if [ "$REVISION" = c64d0fb58132482c74ce9bd5f1682b9aed7acf12 ]; then
+            test "$STRESS_OUTCOME" = success
+          fi
