@@ -23,7 +23,6 @@ jobs:
           - 55b4415230cb92d15089ddc5c1b97bae2962e087
     env:
       GOTOOLCHAIN: local
-      MILVUS_CONF_LOCALSTORAGE_PATH: /tmp/milvus-expr-cache-diagnostics
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
@@ -40,7 +39,6 @@ jobs:
           uname -a
           # Tests with SkipEnv(true) intentionally use this default Linux path.
           sudo install -d -m 0777 /var/lib/milvus/data
-          mkdir -p "$MILVUS_CONF_LOCALSTORAGE_PATH"
       - name: Parser and rewriter suite
         id: parser
         continue-on-error: true
